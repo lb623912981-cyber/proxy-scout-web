@@ -361,7 +361,7 @@
       if (activeRun()) { toast("已有一轮测速正在进行，已为你显示进度。"); return; }
       pending = { previous: Math.max(0, ...runs.map(run => run.id)), at: new Date().toISOString(), uncertain: false };
       dispatched = true;
-      await api(ctx, endpoint(ctx) + "/actions/workflows/" + WORKFLOW + "/dispatches", { method: "POST", body: { ref: ctx.branch || "main", inputs: { download: true } } });
+      await api(ctx, endpoint(ctx) + "/actions/workflows/" + WORKFLOW + "/dispatches", { method: "POST", body: { ref: ctx.branch || "main", inputs: { download: "true" } } });
       if (ctx !== connection) return;
       toast("已提交到云端，可以留在这里等待，也可以稍后再回来。");
     } catch (error) {

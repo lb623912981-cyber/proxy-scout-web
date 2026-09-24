@@ -82,6 +82,39 @@
   function latency(value) { return Number.isFinite(value) ? Math.round(value).toString() : "—"; }
   function activeRun() { return runs.find(run => ACTIVE.has(run.status)); }
   function bestNode() { return result?.report.nodes.find(node => node.online); }
+  function sourceKey(node) { return node.source_id != null ? "id:" + node.source_id : "name:" + (node.source || "未分类来源"); }
+  function sourceGroups() {
+    const groups = new Map((result?.report.source_groups || []).map(group => ["id:" + group.id, { ...group, key: "id:" + group.id, nodes: [] }]));
+    for (const node of result?.report.nodes || []) {
+      const key = sourceKey(node);
+      if (!groups.has(key)) groups.set(key, { key, name: node.source || "未分类来源", nodes: [] });
+      groups.get(key).nodes.push(node);
+    }
+    return [...groups.values()];
+  }
+  function sortedNodes(nodes) {
+    const download = $("node-sort").value === "speed";
+    const delay = node => Number.isFinite(node.latency) ? node.latency : Infinity;
+    return [...nodes].sort((a, b) => {
+      if (Boolean(a.online) !== Boolean(b.online)) return a.online ? -1 : 1;
+      if (download) {
+        const aSpeed = Number.isFinite(a.mbps) ? a.mbps : -1;
+        const bSpeed = Number.isFinite(b.mbps) ? b.mbps : -1;
+        if (aSpeed !== bSpeed) return bSpeed - aSpeed;
+      }
+      return delay(a) - delay(b) || String(a.name).localeCompare(String(b.name), "zh-CN");
+    });
+  }
+  function latencyClass(node) {
+    if (!node.online || !Number.isFinite(node.latency)) return "latency-offline";
+    return node.latency <= 150 ? "latency-fast" : node.latency <= 300 ? "latency-medium" : "latency-high";
+  }
+  function updateSourceFilter() {
+    const previous = $("source-filter").value;
+    const options = [new Option("全部订阅", ""), ...sourceGroups().map(group => new Option(group.name, group.key))];
+    $("source-filter").replaceChildren(...options);
+    if (options.some(option => option.value === previous)) $("source-filter").value = previous;
+  }
   function create(tag, className, text) {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -164,11 +197,12 @@
     $("stat-online").textContent = report?.available ?? "—";
     $("stat-measured").textContent = report ? report.nodes.filter(node => Number.isFinite(node.mbps)).length : "—";
     $("stat-traffic").textContent = report ? (Number(report.download_bytes || 0) / 1048576).toFixed(1) : "—";
-    $("data-time").textContent = report ? "测速完成于 " + dateTime(report.generated_at) : "这里会显示真实的测速记录。";
+    $("data-time").textContent = report ? (report.download_requested ? "完整测速" : "仅测延迟") + " · 完成于 " + dateTime(report.generated_at) : "这里会显示真实的测速记录。";
     $("hero-note").textContent = report?.warnings?.length
       ? "本轮说明：" + report.warnings.join("；")
-      : "云端运行，电脑无需开机。完整测速通常需要几分钟。";
+      : report && !report.download_requested ? "本轮只检查连接和延迟，未进行下载测速。需要 Mbps 数据可点击“完整测速”。" : "只测延迟更快；完整测速包含下载抽样，通常需要几分钟。";
     updateAge();
+    updateSourceFilter();
     renderNodes();
   }
   function updateAge() {
@@ -180,36 +214,85 @@
   }
   function renderNodes() {
     const query = $("search").value.trim().toLowerCase();
-    const all = result?.report.nodes || [];
-    const visible = all.filter(node => (filter === "all" || (filter === "available" ? node.online : !node.online))
-      && [node.name, node.source, node.type].join(" ").toLowerCase().includes(query));
-    $("node-count").textContent = visible.length;
+    const selected = $("source-filter").value;
+    const collapsed = new Set([...$("node-list").children].filter(group => !group.open).map(group => group.dataset.key));
     const fragment = document.createDocumentFragment();
-    const ranks = new Map(all.filter(node => node.online).map((node, i) => [node.id, i + 1]));
-    for (const node of visible) {
-      const row = create("article", "node" + (node.online ? "" : " offline"));
-      const rank = ranks.get(node.id);
-      row.append(create("span", "node-rank" + (rank === 1 ? " first" : ""), rank ? String(rank).padStart(2, "0") : "—"));
-      const main = create("div", "node-main");
-      main.append(create("div", "node-title", node.name));
-      const meta = create("div", "node-meta");
-      meta.append(create("span", "state", node.online ? "可用" : "未连通"), create("span", "", String(node.type).toUpperCase()), create("span", "", node.source));
-      main.append(meta);
-      const value = create("div", "node-result");
-      value.append(create("strong", "", speed(node.mbps)), create("small", "", Number.isFinite(node.mbps) ? "Mbps" : node.online ? "未测得下载" : "离线"), create("span", "", node.online ? latency(node.latency) + " ms" : ""));
-      row.append(main, value);
-      const use = create("button", "node-use", "↗");
-      use.type = "button";
-      use.setAttribute("aria-label", "查看 " + node.name);
-      use.addEventListener("click", () => openNode(node));
-      row.append(use);
-      fragment.append(row);
+    let count = 0;
+    let groupCount = 0;
+    for (const group of sourceGroups()) {
+      if (selected && group.key !== selected) continue;
+      const sorted = sortedNodes(group.nodes);
+      const online = sorted.filter(node => node.online);
+      const visible = sorted.filter(node => (filter === "all" || (filter === "available" ? node.online : !node.online))
+        && [node.name, group.name, node.type].join(" ").toLowerCase().includes(query));
+      if (query && !visible.length && !group.name.toLowerCase().includes(query)) continue;
+      count += visible.length;
+      groupCount++;
+      const section = create("details", "source-group");
+      section.dataset.key = group.key;
+      section.open = query ? true : !collapsed.has(group.key);
+      const summary = create("summary", "source-heading");
+      const heading = create("div", "source-title");
+      heading.append(create("h3", "", group.name));
+      heading.append(create("p", "", "可用 " + online.length + " / 已检查 " + group.nodes.length
+        + (group.total != null ? " · 读取 " + group.total : "")
+        + (group.unchecked ? " · 未检查 " + group.unchecked : "") + " · 当前显示 " + visible.length));
+      const delays = online.map(node => node.latency).filter(Number.isFinite);
+      summary.append(heading, create("span", "group-lowest", delays.length ? "最低 " + latency(Math.min(...delays)) + " ms" : "暂无可用延迟"));
+      section.append(summary);
+      const content = create("div", "source-body");
+      const actions = create("div", "source-actions");
+      if (online.length) {
+        const best = online[0];
+        const measuredSpeed = $("node-sort").value === "speed" && Number.isFinite(best.mbps);
+        const recommendation = create("button", "group-recommendation", (measuredSpeed ? "下载优选：" : "低延迟优选：") + best.name + " ↗");
+        recommendation.addEventListener("click", () => openNode(best));
+        actions.append(recommendation);
+      }
+      const config = result?.source_configs?.[group.id];
+      if (config) {
+        const exportButton = create("button", "text-button", "导出本组 ↓");
+        exportButton.addEventListener("click", () => download(config, "scout-source-" + String(group.id).replace(/[^a-zA-Z0-9-]/g, "") + ".yaml"));
+        actions.append(exportButton);
+      }
+      content.append(actions);
+      const grid = create("div", "node-list");
+      const ranks = new Map(online.map((node, i) => [node.id, i + 1]));
+      for (const node of visible) {
+        const row = create("article", "node" + (node.online ? "" : " offline"));
+        const rank = ranks.get(node.id);
+        row.append(create("span", "node-rank" + (rank === 1 ? " first" : ""), rank ? String(rank).padStart(2, "0") : "—"));
+        const main = create("div", "node-main");
+        const title = create("div", "node-title", node.name);
+        title.title = node.name;
+        main.append(title);
+        const meta = create("div", "node-meta");
+        meta.append(create("span", "state", node.online ? "可用" : "未连通"), create("span", "", String(node.type).toUpperCase()));
+        main.append(meta);
+        const value = create("div", "node-result");
+        const delay = create("strong", latencyClass(node), node.online ? latency(node.latency) : "未连通");
+        value.append(delay);
+        if (node.online) value.append(create("small", "", "ms"));
+        value.append(create("span", "", Number.isFinite(node.mbps) ? speed(node.mbps) + " Mbps" : result?.report.download_requested ? "未测得下载" : "未测下载"));
+        row.append(main, value);
+        const use = create("button", "node-use", "↗");
+        use.type = "button";
+        use.setAttribute("aria-label", "查看 " + node.name);
+        use.addEventListener("click", () => openNode(node));
+        row.append(use);
+        grid.append(row);
+      }
+      content.append(grid);
+      if (!visible.length) content.append(create("p", "group-empty", group.status === "error" ? "此订阅读取失败，请检查链接或稍后重测。" : group.status === "empty" ? "此订阅没有解析到节点。" : "此分组没有符合当前筛选条件的已测节点。"));
+      section.append(content);
+      fragment.append(section);
     }
+    $("node-count").textContent = count;
     $("node-list").replaceChildren(fragment);
-    $("empty").hidden = visible.length > 0;
+    $("empty").hidden = groupCount > 0;
     $("connect-empty").hidden = Boolean(connection);
     $("empty-title").textContent = !connection ? "先连接，再出发。" : !result ? "准备好，测一轮吧。" : "没有匹配的线路。";
-    $("empty-description").textContent = !connection ? "首次绑定你的云端空间，之后测速和查看结果都在这里完成。" : !result ? "点击“立即测速”，几分钟后在这里查看结果。" : "换一个关键词或筛选条件，也可以重新测速。";
+    $("empty-description").textContent = !connection ? "首次绑定你的云端空间，之后测速和查看结果都在这里完成。" : !result ? "点击“只测延迟”或“完整测速”，完成后在这里查看分组结果。" : "换一个关键词或筛选条件，也可以重新测速。";
   }
   function configFor(node) {
     return result?.node_configs?.[node.id] || (node.id === bestNode()?.id ? result?.clash_recommended : "") || "";
@@ -221,7 +304,8 @@
     $("detail-name").textContent = node.name;
     $("detail-source").textContent = node.source;
     $("detail-speed").textContent = speed(node.mbps) + " Mbps";
-    $("detail-latency").textContent = latency(node.latency) + " ms";
+    $("detail-latency").textContent = node.online ? latency(node.latency) + " ms · 云端延迟" : "未连通";
+    $("detail-latency").className = latencyClass(node);
     $("copy-node").hidden = !shareFor(node);
     $("download-node").disabled = !configFor(node);
     $("copy-fallback").hidden = true;
@@ -231,6 +315,8 @@
       : configFor(node) ? "这个节点没有可复制的分享链接，请下载配置后导入支持该协议的 Mihomo / Clash 客户端。"
       : "这份旧记录没有单独节点配置，请导出全部配置，或重新测速后再试。";
     if (node.download_error) $("detail-note").textContent += " 下载抽样：" + node.download_error;
+    if (node.latency_error) $("detail-note").textContent += " 延迟检测：" + node.latency_error;
+    if (node.checked_at) $("detail-note").textContent += " 延迟检查时间：" + dateTime(node.checked_at) + "。";
     if (!$("node-dialog").open) $("node-dialog").showModal();
   }
   function download(content, filename) {
@@ -272,7 +358,8 @@
     const latest = runs[0];
     const busy = Boolean(active || pending || starting);
     $("start").disabled = busy;
-    $("start-label").textContent = busy ? "云端测速中" : "立即测速";
+    $("start-latency").disabled = busy;
+    $("start-label").textContent = busy ? "云端检测中" : "完整测速";
     $("start-symbol").classList.toggle("spinning", busy);
     $("start-symbol").textContent = busy ? "◌" : "↗";
     $("activity-bar").hidden = !busy;
@@ -284,7 +371,7 @@
       setStages(phase);
       $("run-badge").textContent = !active || active.status !== "in_progress" ? "等待云端" : "进行中";
       $("run-title").textContent = ["正在准备这次测速。", "正在实测线路表现。", "正在整理新推荐。 "][phase];
-      $("run-description").textContent = pending?.uncertain ? "提交结果尚未确认，正在查询云端。请先不要重复发起。" : phase === 0 ? "任务可能需要排队，接下来会读取两个订阅。" : phase === 1 ? "逐个检查连接与下载速度，完成后更新结果。" : "写入本轮测速结果，推荐即将更新。";
+      $("run-description").textContent = pending?.uncertain ? "提交结果尚未确认，正在查询云端。请先不要重复发起。" : phase === 0 ? "任务可能需要排队，接下来会读取订阅。" : phase === 1 ? "按所选模式检查延迟或下载，完成后按订阅分别显示。" : "写入本轮测速结果，分组报告即将更新。";
       $("run-elapsed").textContent = active ? "已等待 " + elapsed(active.created_at) : pending ? "已等待 " + elapsed(pending.at) : "正在提交";
     } else if (latest) {
       const success = latest.conclusion === "success";
@@ -298,7 +385,7 @@
       setStages(-1);
       $("run-badge").textContent = "随时出发";
       $("run-title").textContent = "按一下，剩下交给云端。";
-      $("run-description").textContent = "读取订阅、检测连接、抽样下载，完成后自动更新推荐。";
+      $("run-description").textContent = "只测延迟检查连接响应；完整测速还会抽样下载。完成后按订阅分别显示。";
       $("run-elapsed").textContent = "准备好时，就开始吧";
     }
   }
@@ -346,7 +433,7 @@
       schedulePoll();
     }
   }
-  async function startRun() {
+  async function startRun(downloadRequested = true) {
     if (!connection) { openConnect(); return; }
     if (starting || pending || activeRun()) return;
     const ctx = connection;
@@ -361,9 +448,9 @@
       if (activeRun()) { toast("已有一轮测速正在进行，已为你显示进度。"); return; }
       pending = { previous: Math.max(0, ...runs.map(run => run.id)), at: new Date().toISOString(), uncertain: false };
       dispatched = true;
-      await api(ctx, endpoint(ctx) + "/actions/workflows/" + WORKFLOW + "/dispatches", { method: "POST", body: { ref: ctx.branch || "main", inputs: { download: "true" } } });
+      await api(ctx, endpoint(ctx) + "/actions/workflows/" + WORKFLOW + "/dispatches", { method: "POST", body: { ref: ctx.branch || "main", inputs: { download: String(downloadRequested) } } });
       if (ctx !== connection) return;
-      toast("已提交到云端，可以留在这里等待，也可以稍后再回来。");
+      toast((downloadRequested ? "完整测速" : "仅测延迟") + "已提交到云端，完成后按订阅显示结果。");
     } catch (error) {
       if (ctx !== connection) return;
       if (dispatched && (!error.status || error.status >= 500)) {
@@ -415,9 +502,12 @@
   $("settings").addEventListener("click", openConnect);
   $("connect-empty").addEventListener("click", openConnect);
   $("repository").addEventListener("input", updateGuide);
-  $("start").addEventListener("click", startRun);
+  $("start").addEventListener("click", () => startRun(true));
+  $("start-latency").addEventListener("click", () => startRun(false));
   $("refresh").addEventListener("click", () => { if (!connection) openConnect(); else { notice(); sync(true); } });
   $("search").addEventListener("input", renderNodes);
+  $("source-filter").addEventListener("change", renderNodes);
+  $("node-sort").addEventListener("change", renderNodes);
   document.querySelectorAll("[data-filter]").forEach(button => button.addEventListener("click", () => {
     filter = button.dataset.filter;
     document.querySelectorAll("[data-filter]").forEach(item => { item.classList.toggle("active", item === button); item.setAttribute("aria-pressed", String(item === button)); });

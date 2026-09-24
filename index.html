@@ -11,8 +11,8 @@
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icon.svg">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css">
-  <script src="./app.js" defer></script>
+  <link rel="stylesheet" href="./style.css?v=latency-1">
+  <script src="./app.js?v=latency-1" defer></script>
 </head>
 <body>
   <main class="app">
@@ -29,13 +29,20 @@
         <h2 id="best-title">下一条好线路，等你发现。</h2>
         <p id="best-description">连接你的测速空间，即可查看结果，或开始一次新的测速。</p>
         <div class="hero-metrics"><div><strong id="best-speed">—</strong><span>Mbps <small>抽样下载</small></span></div><div><strong id="best-latency">—</strong><span>ms <small>连接延迟</small></span></div></div>
-        <div class="hero-actions"><button class="button primary" id="start"><span class="start-symbol" id="start-symbol">↗</span><span id="start-label">立即测速</span></button><button class="button hero-secondary" id="best-export" disabled>使用推荐节点</button></div>
+        <div class="hero-actions"><button class="button primary" id="start-latency">◷ 只测延迟</button><button class="button hero-secondary" id="start"><span class="start-symbol" id="start-symbol">↗</span><span id="start-label">完整测速</span></button><button class="button hero-secondary" id="best-export" disabled>使用推荐节点</button></div>
         <p class="hero-note" id="hero-note">云端运行，电脑无需开机。完整测速通常需要几分钟。</p>
       </section>
       <section class="run-card" aria-labelledby="run-title"><div class="run-header"><span class="eyebrow">YOUR NEXT CONNECTION</span><span class="run-badge" id="run-badge">随时出发</span></div><h3 id="run-title">按一下，剩下交给云端。</h3><p id="run-description">读取订阅、检测连接、抽样下载，完成后自动更新推荐。</p><ol class="stages" id="stages"><li data-stage="prepare"><span class="stage-number">01</span><div><strong>准备线路</strong><small>读取两个订阅的最新节点</small></div><span class="stage-status"></span></li><li data-stage="measure"><span class="stage-number">02</span><div><strong>实测表现</strong><small>检查可用性与下载速度</small></div><span class="stage-status"></span></li><li data-stage="publish"><span class="stage-number">03</span><div><strong>送上推荐</strong><small>结果直接显示在这里</small></div><span class="stage-status"></span></li></ol><div class="run-foot"><span id="run-elapsed">准备好时，就开始吧</span><button class="text-button" id="refresh">↻ 刷新状态</button></div><div class="activity-bar" id="activity-bar" hidden><span></span></div></section>
     </div>
     <section class="stats" aria-label="最近一次测速统计"><article><span>读取节点</span><strong id="stat-total">—</strong><small>订阅中的线路</small></article><article><span>当前可用</span><strong id="stat-online">—</strong><small>本轮连通性通过</small></article><article><span>有效下载测速</span><strong id="stat-measured">—</strong><small>成功完成下载抽样</small></article><article><span>本轮下载流量</span><strong id="stat-traffic">—</strong><small>MiB · 不含协议开销</small></article></section>
-    <section class="node-section"><div class="section-top"><div><p class="eyebrow">FIND YOUR FLOW</p><h2>可用线路 <span id="node-count">0</span></h2></div><button class="button outlined small" id="export-all" disabled>导出全部配置 ↓</button></div><div class="toolbar"><div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索节点、地区、协议…" aria-label="搜索节点"></div><div class="tabs" role="group" aria-label="节点过滤"><button class="tab active" data-filter="available">可用</button><button class="tab" data-filter="all">全部</button><button class="tab" data-filter="offline">离线</button></div></div><div id="node-list" class="node-list"></div><div class="empty" id="empty"><span class="empty-art" aria-hidden="true">⌁</span><h3 id="empty-title">先连接，再出发。</h3><p id="empty-description">首次绑定你的云端空间。<br>之后测速、查看结果，都在这个页面完成。</p><button class="button dark" id="connect-empty">连接我的测速空间</button></div><div class="list-foot"><span id="data-time">这里会显示真实的测速记录。</span><span>数据保存在你的私有空间</span></div></section>
+    <section class="node-section">
+      <div class="section-top"><div><p class="eyebrow">FIND YOUR FLOW</p><h2>按订阅查看线路 <span id="node-count">0</span></h2></div><button class="button outlined small" id="export-all" disabled>导出全部配置 ↓</button></div>
+      <div class="toolbar"><div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索节点、地区、协议…" aria-label="搜索节点"></div><div class="tabs" role="group" aria-label="节点过滤"><button class="tab active" data-filter="available" aria-pressed="true">可用</button><button class="tab" data-filter="all" aria-pressed="false">全部</button><button class="tab" data-filter="offline" aria-pressed="false">未连通</button></div></div>
+      <div class="report-controls"><label>订阅来源<select id="source-filter"><option value="">全部订阅</option></select></label><label>组内排序<select id="node-sort"><option value="latency">延迟：低 → 高</option><option value="speed">下载：快 → 慢</option></select></label></div>
+      <div class="latency-legend" aria-label="延迟颜色说明"><span class="latency-fast">≤150 ms</span><span class="latency-medium">151–300 ms</span><span class="latency-high">&gt;300 ms</span><span class="latency-offline">未连通</span><small>云端延迟 · 数值越低，响应越快</small></div>
+      <div id="node-list" class="source-list"></div>
+      <div class="empty" id="empty"><span class="empty-art" aria-hidden="true">⌁</span><h3 id="empty-title">先连接，再出发。</h3><p id="empty-description">首次绑定你的云端空间。<br>之后测速、查看结果，都在这个页面完成。</p><button class="button dark" id="connect-empty">连接我的测速空间</button></div><div class="list-foot"><span id="data-time">这里会显示真实的测速记录。</span><span>数据保存在你的私有空间</span></div>
+    </section>
     <section class="history-section" id="history-section" hidden><div class="section-top"><h3>最近的测速</h3><span class="subtle">时间均为本机时区</span></div><div id="history-list" class="history-list"></div></section>
     <p class="footnote">✧ 云端测速反映云端到检测站的表现，手机实际体验会受当前网络影响。</p>
     <footer><span>顺风 · A LITTLE LESS WAITING</span><button class="text-button" id="install-tip">添加到手机桌面 ↗</button></footer>

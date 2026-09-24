@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#17382e">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; object-src 'none'; form-action 'none'">
+  <meta name="description" content="顺风：手机打开，按需测速，找到更快的连接。">
+  <title>顺风 · 我的测速台</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <a class="brand" href="./" aria-label="顺风首页"><img src="./icon.svg" width="38" height="38" alt=""><span>顺风<small>PROXY SCOUT</small></span></a>
+      <div class="header-right"><span class="connection" id="connection"><i></i><span id="connection-text">尚未连接</span></span><button class="icon-button" id="settings" aria-label="连接设置">⚙</button></div>
+    </header>
+    <section class="intro"><div><p class="eyebrow">LESS WAITING. MORE GOING.</p><h1>好连接，<span>现在就出发。</span></h1><p class="intro-copy">想用的时候测一次，把更快的线路留给自己。</p></div><span class="mode-tag">按需测速 <i>↗</i></span></section>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <div class="top-grid">
+      <section class="hero" aria-labelledby="best-title">
+        <div class="hero-orbit" aria-hidden="true"><span>↗</span></div>
+        <div class="hero-top"><span class="pill"><i></i><span id="best-label">我的推荐线路</span></span><span id="report-age">等待连接</span></div>
+        <h2 id="best-title">下一条好线路，等你发现。</h2>
+        <p id="best-description">连接你的测速空间，即可查看结果，或开始一次新的测速。</p>
+        <div class="hero-metrics"><div><strong id="best-speed">—</strong><span>Mbps <small>抽样下载</small></span></div><div><strong id="best-latency">—</strong><span>ms <small>连接延迟</small></span></div></div>
+        <div class="hero-actions"><button class="button primary" id="start"><span class="start-symbol" id="start-symbol">↗</span><span id="start-label">立即测速</span></button><button class="button hero-secondary" id="best-export" disabled>使用推荐节点</button></div>
+        <p class="hero-note" id="hero-note">云端运行，电脑无需开机。完整测速通常需要几分钟。</p>
+      </section>
+      <section class="run-card" aria-labelledby="run-title"><div class="run-header"><span class="eyebrow">YOUR NEXT CONNECTION</span><span class="run-badge" id="run-badge">随时出发</span></div><h3 id="run-title">按一下，剩下交给云端。</h3><p id="run-description">读取订阅、检测连接、抽样下载，完成后自动更新推荐。</p><ol class="stages" id="stages"><li data-stage="prepare"><span class="stage-number">01</span><div><strong>准备线路</strong><small>读取两个订阅的最新节点</small></div><span class="stage-status"></span></li><li data-stage="measure"><span class="stage-number">02</span><div><strong>实测表现</strong><small>检查可用性与下载速度</small></div><span class="stage-status"></span></li><li data-stage="publish"><span class="stage-number">03</span><div><strong>送上推荐</strong><small>结果直接显示在这里</small></div><span class="stage-status"></span></li></ol><div class="run-foot"><span id="run-elapsed">准备好时，就开始吧</span><button class="text-button" id="refresh">↻ 刷新状态</button></div><div class="activity-bar" id="activity-bar" hidden><span></span></div></section>
+    </div>
+    <section class="stats" aria-label="最近一次测速统计"><article><span>读取节点</span><strong id="stat-total">—</strong><small>订阅中的线路</small></article><article><span>当前可用</span><strong id="stat-online">—</strong><small>本轮连通性通过</small></article><article><span>有效下载测速</span><strong id="stat-measured">—</strong><small>成功完成下载抽样</small></article><article><span>本轮下载流量</span><strong id="stat-traffic">—</strong><small>MiB · 不含协议开销</small></article></section>
+    <section class="node-section"><div class="section-top"><div><p class="eyebrow">FIND YOUR FLOW</p><h2>可用线路 <span id="node-count">0</span></h2></div><button class="button outlined small" id="export-all" disabled>导出全部配置 ↓</button></div><div class="toolbar"><div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索节点、地区、协议…" aria-label="搜索节点"></div><div class="tabs" role="group" aria-label="节点过滤"><button class="tab active" data-filter="available">可用</button><button class="tab" data-filter="all">全部</button><button class="tab" data-filter="offline">离线</button></div></div><div id="node-list" class="node-list"></div><div class="empty" id="empty"><span class="empty-art" aria-hidden="true">⌁</span><h3 id="empty-title">先连接，再出发。</h3><p id="empty-description">首次绑定你的云端空间。<br>之后测速、查看结果，都在这个页面完成。</p><button class="button dark" id="connect-empty">连接我的测速空间</button></div><div class="list-foot"><span id="data-time">这里会显示真实的测速记录。</span><span>数据保存在你的私有空间</span></div></section>
+    <section class="history-section" id="history-section" hidden><div class="section-top"><h3>最近的测速</h3><span class="subtle">时间均为本机时区</span></div><div id="history-list" class="history-list"></div></section>
+    <p class="footnote">✧ 云端测速反映云端到检测站的表现，手机实际体验会受当前网络影响。</p>
+    <footer><span>顺风 · A LITTLE LESS WAITING</span><button class="text-button" id="install-tip">添加到手机桌面 ↗</button></footer>
+  </main>
+
+  <dialog id="connect-dialog" class="dialog"><div class="dialog-top"><span class="dialog-kicker">只需首次连接</span><button class="icon-button" data-close="connect-dialog" aria-label="关闭">×</button></div><div class="dialog-body"><h2>连接我的测速空间</h2><p>使用专用访问令牌绑定一次，就能直接在页面里启动云端测速。</p><details class="setup-guide" open><summary>第一次如何获得访问令牌？</summary><ol><li>打开 <a id="token-create" target="_blank" rel="noopener noreferrer">创建专用令牌</a>，登录你的 GitHub。</li><li>Repository access 选择 <b>Only select repositories</b>，只选 <b id="repo-hint">proxy-scout-cloud</b>。</li><li>权限保留 <b>Actions: Read and write</b>、<b>Contents: Read-only</b>。</li><li>点 Generate token，复制令牌粘贴到下面。</li></ol></details><form id="connect-form"><label for="token">专用访问令牌</label><input id="token" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="none" spellcheck="false" required><label class="check-row"><input id="remember" type="checkbox"><span>在这台手机记住连接</span></label><p class="field-note">未勾选时仅保留在当前会话。令牌只发送给 GitHub，用于读取你的结果和发起测速。</p><details class="advanced"><summary>测速空间设置</summary><label for="repository">仓库</label><input id="repository" value="lb623912981-cyber/proxy-scout-cloud" autocomplete="off" autocapitalize="none" spellcheck="false" required></details><div class="form-error" id="connect-error" role="alert" hidden></div><button class="button dark full" id="connect-submit" type="submit">连接云端 ↗</button></form><button class="disconnect" id="disconnect" hidden>断开连接并清除本机令牌</button></div></dialog>
+
+  <dialog id="node-dialog" class="dialog"><div class="dialog-top"><span class="dialog-kicker" id="detail-type">节点配置</span><button class="icon-button" data-close="node-dialog" aria-label="关闭">×</button></div><div class="dialog-body"><h2 id="detail-name"></h2><p id="detail-source"></p><div class="detail-metrics"><span id="detail-speed"></span><span id="detail-latency"></span></div><p class="field-note" id="detail-note">选择适合手机客户端的导入方式。</p><button class="button dark full" id="copy-node">复制节点链接</button><button class="button outlined full" id="download-node">下载 Clash 配置</button><textarea id="copy-fallback" readonly hidden aria-label="长按复制节点内容"></textarea></div></dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
